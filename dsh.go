@@ -100,7 +100,14 @@ func ls(args []string) error {
 }
 
 func run(args []string) error {
-	cmd := exec.Command("docker", append([]string{"run", "-it", args[0][2:]}, args[1:]...)...)
+	d := args[len(args)-1] == "&"
+
+	if d {
+		args = args[:len(args)-1]
+	}
+
+	cmd := exec.Command("docker", append([]string{"run", "-it", fmt.Sprintf("-d=%t", d), args[0][2:]}, args[1:]...)...)
+
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
