@@ -17,14 +17,17 @@ import (
 
 var (
 	builtins = map[string]func([]string) error{
-		"exit": exit,
-		"ps":   ps,
-		"kill": kill,
-		"ls":   ls,
-		"run":  run,
+		"exit":   exit,
+		"ps":     ps,
+		"kill":   kill,
+		"ls":     ls,
+		"run":    run,
+		"commit": commit,
 	}
 
-	docker *dockerclient.DockerClient
+	docker          *dockerclient.DockerClient
+	lastContainerID string
+	lastImageID     string
 )
 
 func init() {
@@ -106,7 +109,12 @@ func run(args []string) error {
 		args = args[:len(args)-1]
 	}
 
-	cmd := exec.Command("docker", append([]string{"run", "-it", fmt.Sprintf("-d=%t", d), args[0][2:]}, args[1:]...)...)
+	img := args[0][2:]
+	if img == "_" {
+		img = lastImageID
+	}
+
+	cmd := exec.Command("docker", append([]string{"run", "-it", fmt.Sprintf("-d=%t", d), img}, args[1:]...)...)
 
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -116,6 +124,32 @@ func run(args []string) error {
 		return err
 	}
 
+	out, err := exec.Command("docker", "ps", "-l", "-q").Output()
+	if err != nil {
+		return err
+	}
+
+	lastContainerID = strings.TrimSpace(string(out))
+	fmt.Println(lastContainerID)
+
+	return nil
+}
+
+func commit(arg []string) error {
+	repo, tag := "", ""
+	if len(arg) > 0 && len(arg[0]) > 0 {
+		parts := strings.Split(arg[0], ":")
+		repo = parts[0]
+		if len(parts) > 1 {
+			tag = parts[1]
+		}
+	}
+	img, err := docker.Commit(lastContainerID, repo, tag)
+	if err != nil {
+		return fmt.Errorf("failed to commit: %v", err)
+	}
+	lastImageID = img
+	fmt.Println(lastImageID)
 	return nil
 }
 
