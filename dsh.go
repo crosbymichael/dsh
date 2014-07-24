@@ -136,7 +136,15 @@ func run(args []string) error {
 }
 
 func commit(arg []string) error {
-	img, err := docker.Commit(lastContainerID, "", "")
+	repo, tag := "", ""
+	if len(arg) > 0 && len(arg[0]) > 0 {
+		parts := strings.Split(arg[0], ":")
+		repo = parts[0]
+		if len(parts) > 1 {
+			tag = parts[1]
+		}
+	}
+	img, err := docker.Commit(lastContainerID, repo, tag)
 	if err != nil {
 		return fmt.Errorf("failed to commit: %v", err)
 	}
