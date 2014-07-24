@@ -87,9 +87,11 @@ func ls(args []string) error {
 			continue
 		}
 
+		name := strings.Split(i.RepoTags[0], ":")[0]
+
 		t := time.Unix(i.Created, 0).Format("Jan 02")
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", i.Id[:5], units.HumanSize(i.VirtualSize), t, i.RepoTags[0])
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", i.Id[:5], units.HumanSize(i.VirtualSize), t, name)
 	}
 
 	w.Flush()
@@ -110,11 +112,15 @@ func run(args []string) error {
 	return nil
 }
 
+func prompt() {
+	fmt.Fprintf(os.Stdout, "> ")
+}
+
 func main() {
 	s := bufio.NewScanner(os.Stdin)
 
 	fmt.Fprintln(os.Stdout, "the shell for the 2000nds")
-	fmt.Fprintf(os.Stdout, "> ")
+	prompt()
 
 	for s.Scan() {
 		tokens := strings.Split(s.Text(), " ")
@@ -124,7 +130,7 @@ func main() {
 				log.Fatal(err)
 			}
 
-			fmt.Fprintf(os.Stdout, "> ")
+			prompt()
 
 			continue
 		}
@@ -134,7 +140,7 @@ func main() {
 				log.Fatal(err)
 			}
 
-			fmt.Fprintf(os.Stdout, "> ")
+			prompt()
 
 			continue
 		}
@@ -149,6 +155,6 @@ func main() {
 			log.Fatal(err)
 		}
 
-		fmt.Fprintf(os.Stdout, "> ")
+		prompt()
 	}
 }
