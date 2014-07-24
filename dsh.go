@@ -127,18 +127,19 @@ func main() {
 	s := bufio.NewScanner(os.Stdin)
 
 	fmt.Fprintln(os.Stdout, "the shell for the 2000nds")
-	prompt()
 
-	for s.Scan() {
+	for {
+		prompt()
+		if !s.Scan() {
+			break
+		}
+
 		tokens := strings.Split(s.Text(), " ")
 
 		if len(tokens[0]) > 2 && tokens[0][:2] == "./" {
 			if err := run(tokens); err != nil {
 				log.Fatal(err)
 			}
-
-			prompt()
-
 			continue
 		}
 
@@ -146,9 +147,6 @@ func main() {
 			if err := b(tokens[1:]); err != nil {
 				log.Fatal(err)
 			}
-
-			prompt()
-
 			continue
 		}
 
@@ -161,7 +159,5 @@ func main() {
 		if err := cmd.Run(); err != nil {
 			log.Fatal(err)
 		}
-
-		prompt()
 	}
 }
