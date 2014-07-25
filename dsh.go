@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/dotcloud/docker/pkg/units"
-	"github.com/samalba/dockerclient"
+	"github.com/fsouza/go-dockerclient"
 )
 
 var (
@@ -24,13 +24,13 @@ var (
 		"run":  run,
 	}
 
-	docker *dockerclient.DockerClient
+	client *docker.Client
 )
 
 func init() {
 	var err error
 
-	if docker, err = dockerclient.NewDockerClient(os.Getenv("DOCKER_HOST"), nil); err != nil {
+	if client, err = docker.NewClient(os.Getenv("DOCKER_HOST")); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -52,7 +52,7 @@ func exit(args []string) error {
 }
 
 func ps(args []string) error {
-	containers, err := docker.ListContainers(false)
+	containers, err := client.ListContainers(docker.ListContainersOptions{})
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func ps(args []string) error {
 	fmt.Fprintf(w, "ID\tIMAGE\tCMD\n")
 
 	for _, c := range containers {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", c.Id[0:5], c.Image, c.Command)
+		fmt.Fprintf(w, "%s\t%s\t%s\n", c.ID[0:5], c.Image, c.Command)
 	}
 
 	w.Flush()
@@ -70,11 +70,11 @@ func ps(args []string) error {
 }
 
 func kill(args []string) error {
-	return docker.KillContainer(args[0])
+	return client.KillContainer(docker.KillContainerOptions{ID: args[0]})
 }
 
 func ls(args []string) error {
-	images, err := docker.ListImages()
+	images, err := client.ListImages(false)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func ls(args []string) error {
 
 		t := time.Unix(i.Created, 0).Format("Jan 02")
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", i.Id[:5], units.HumanSize(i.VirtualSize), t, name)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", i.ID[:5], units.HumanSize(i.VirtualSize), t, name)
 	}
 
 	w.Flush()
@@ -106,15 +106,52 @@ func run(args []string) error {
 		args = args[:len(args)-1]
 	}
 
-	cmd := exec.Command("docker", append([]string{"run", "-it", fmt.Sprintf("-d=%t", d), args[0][2:]}, args[1:]...)...)
-
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
+	c, err := client.CreateContainer(docker.CreateContainerOptions{
+		Config: &docker.Config{
+			AttachStdin:  true,
+			AttachStdout: !d,
+			AttachStderr: !d,
+			Tty:          true,
+			OpenStdin:    true,
+			Cmd:          args[1:],
+			Image:        args[0][2:],
+		},
+	})
+	if err != nil {
 		return err
 	}
+
+	if err := client.StartContainer(c.ID, &docker.HostConfig{}); err != nil {
+		return err
+	}
+
+	if d {
+		return nil
+	}
+
+	connected := make(chan struct{})
+	go func() {
+		connected <- (<-connected)
+		log.Println("attached")
+		fmt.Fprintf(os.Stdout, "# ") // fake first prompt
+	}()
+
+	if err := client.AttachToContainer(docker.AttachToContainerOptions{
+		Container:    c.ID,
+		InputStream:  os.Stdin,
+		OutputStream: os.Stdout,
+		ErrorStream:  os.Stderr,
+		Stream:       true,
+		Stdin:        true,
+		Stdout:       true,
+		Stderr:       true,
+		RawTerminal:  true,
+		Success:      connected,
+	}); err != nil {
+		return err
+	}
+
+	log.Println("detached")
 
 	return nil
 }
